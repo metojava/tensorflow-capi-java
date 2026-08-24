@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.example</groupId>
+  <artifactId>tensorflow-capi-java</artifactId>
+  <version>1.4.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Vendored TensorFlow C distribution (include/ + lib/tensorflow.dll).
+         Override with -Dtf.capi.home=... if you want to build against another one -->
+    <tf.capi.home>${project.basedir}/native/dist</tf.capi.home>
+    <msys2.bash>C:/msys64/usr/bin/bash.exe</msys2.bash>
+  </properties>
+
+ <dependencies>
+    <!-- JFreeChart for visualization -->
+    <dependency>
+      <groupId>org.jfree</groupId>
+      <artifactId>jfreechart</artifactId>
+      <version>1.5.6</version>
+    </dependency>
+    
+    <!-- JCommon (required by JFreeChart) -->
+    <dependency>
+      <groupId>org.jfree</groupId>
+      <artifactId>jcommon</artifactId>
+      <version>1.0.24</version>
+    </dependency>
+  </dependencies>
+
+
+  <build>
+    <plugins>
+      <!-- Builds the JNI bridge DLL with gcc, then packs both DLLs into the
+           JAR so it is fully self-contained -->
+      <plugin>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <version>3.1.0</version>
+        <executions>
+          <execution>
+            <id>build-native</id>
+            <phase>generate-resources</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.directory}/native"/>
+                <exec executable="${msys2.bash}" failonerror="true"
+                      dir="${project.basedir}">
+                  <arg value="src/main/native/build-native.sh"/>
+                  <arg value="${tf.capi.home}"/>
+                </exec>
+              </target>
+            </configuration>
+          </execution>
+          <execution>
+            <id>stage-natives</id>
+            <phase>prepare-package</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <mkdir dir="${project.build.outputDirectory}/native/windows-x86_64"/>
+                <copy file="${project.build.directory}/native/tf_capi_jni.dll"
+                      todir="${project.build.outputDirectory}/native/windows-x86_64"/>
+                <copy file="${tf.capi.home}/lib/tensorflow.dll"
+                      todir="${project.build.outputDirectory}/native/windows-x86_64"/>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- 900 MB DLL: store uncompressed, packaging is much faster -->
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <compress>false</compress>
+        </configuration>
+      </plugin>
+
+      <!-- Run the demo: mvn compile exec:java -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.1.0</version>
+        <configuration>
+          <mainClass>com.example.tfcapi.demo.FashionMnistDemo</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

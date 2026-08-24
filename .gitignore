@@ -1,0 +1,10 @@
+# Maven build output
+target/
+
+# Downloaded TensorFlow C API binaries (~900 MB) - users download these
+# themselves, see share.html step 2
+native/
+
+# JVM crash logs and stray artifacts
+hs_err_pid*
+*.class

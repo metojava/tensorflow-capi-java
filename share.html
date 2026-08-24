@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tensorflow-capi-java — Setup Guide</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem;
+         line-height: 1.6; color: #222; }
+  h1 { border-bottom: 3px solid #f2a33c; padding-bottom: .3rem; }
+  h2 { margin-top: 2rem; color: #b35c00; }
+  code, pre { font-family: Consolas, monospace; background: #f5f5f5; border-radius: 4px; }
+  code { padding: .1em .35em; }
+  pre { padding: .8rem 1rem; overflow-x: auto; border-left: 4px solid #f2a33c; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid #ddd; padding: .45rem .7rem; text-align: left; }
+  th { background: #faf3e8; }
+  .warn { background: #fff3cd; border: 1px solid #eee0a0; padding: .7rem 1rem; border-radius: 6px; }
+  .ok   { color: #1a7f37; font-weight: bold; }
+  .no   { color: #c0392b; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>tensorflow-capi-java — Setup Guide</h1>
+
+<p>A self-contained Java deep-learning library built directly on the
+<strong>TensorFlow C API</strong> via JNI: Keras-style <code>fit()</code>,
+a composable <code>Sequential</code> layer API (Dense, Conv2D, MaxPool2D,
+Flatten, ReLU, Input) and pluggable optimizers (SGD, Momentum, Adam).</p>
+
+<h2>What is in the repo vs. what you must download</h2>
+
+<table>
+  <tr><th>Path</th><th>In repo?</th><th>Why</th></tr>
+  <tr><td><code>src/</code> (Java + JNI C sources)</td><td class="ok">YES</td><td>the actual library</td></tr>
+  <tr><td><code>pom.xml</code>, <code>README.md</code>, <code>tutorial.html</code></td><td class="ok">YES</td><td>build &amp; docs</td></tr>
+  <tr><td><code>target/</code></td><td class="no">no</td><td>Maven build output — regenerated locally by <code>mvn</code></td></tr>
+  <tr><td><code>native/dist/</code></td><td class="no">no</td><td>TensorFlow C API binaries (~900&nbsp;MB) — too large for GitHub's 100&nbsp;MB file limit; download once (below)</td></tr>
+</table>
+
+<h2>Step 1 — Prerequisites</h2>
+<ul>
+  <li><strong>JDK 17+</strong> (<code>JAVA_HOME</code> must be set)</li>
+  <li><strong>Maven</strong></li>
+  <li>Windows: <strong>MSYS2</strong> with gcc (<code>pacman -S mingw-w64-ucrt-x86_64-gcc</code>)</li>
+  <li>Linux/macOS: any gcc/clang — adjust <code>build-native.sh</code> paths if needed</li>
+</ul>
+
+<h2>Step 2 — Download the TensorFlow C API (~900 MB)</h2>
+<p>Grab the CPU package for your platform from the official
+<a href="https://www.tensorflow.org/install/lang_c">TensorFlow C API install page</a>
+(direct assets live on the
+<a href="https://github.com/tensorflow/tensorflow/releases">tensorflow releases</a> page,
+e.g. <code>libtensorflow-cpu-windows-x86_64-2.16.1.zip</code>).</p>
+
+<p>Extract it so the project has this layout:</p>
+<pre><code>tensorflow-capi-java/
+└── native/
+    └── dist/
+        ├── include/          ← from the zip
+        └── lib/
+            └── tensorflow.dll  ← from the zip</code></pre>
+
+<div class="warn"><strong>Note:</strong> the folder is named <code>native/dist</code>
+by convention here — any path works, because you pass it to the build script
+as an argument in the next step.</div>
+
+<h2>Step 3 — Build the JNI bridge</h2>
+<p>From the project root (Windows / MSYS2):</p>
+<pre><code>&amp; "C:\msys64\usr\bin\bash.exe" src/main/native/build-native.sh `
+    "C:\...\tensorflow-capi-java\native\dist"</code></pre>
+<p>The script compiles <code>tf_capi_jni.c</code> + <code>tf_graph_jni.c</code>
+into <code>target/native/tf_capi_jni.dll</code>.</p>
+
+<h2>Step 4 — Put the DLLs where the loader finds them</h2>
+<pre><code># JNI bridge
+Copy-Item target\native\tf_capi_jni.dll target\classes\native\windows-x86_64\ -Force
+
+# TensorFlow itself (loader resolves it from java.library.path or PATH)
+Copy-Item native\dist\lib\tensorflow.dll target\classes\ -Force</code></pre>
+<p>Alternatively add <code>native\dist\lib</code> to <code>PATH</code>, or set
+<code>-Djava.library.path</code>. The library searches, in order:</p>
+<ol>
+  <li><code>TF_CAPI_NATIVE_DIR</code> environment variable</li>
+  <li>classpath <code>/native/&lt;os&gt;-&lt;arch&gt;/</code></li>
+  <li>standard system library paths</li>
+</ol>
+
+<h2>Step 5 — Build &amp; run</h2>
+<pre><code>mvn compile
+# train a CNN on Fashion-MNIST end-to-end:
+mvn compile exec:java -Dexec.mainClass=com.example.tfcapi.demo.FashionMnistDemo</code></pre>
+
+<h2>Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Fix</th></tr>
+  <tr><td><code>UnsatisfiedLinkError: tensorflow</code></td><td>tensorflow.dll not on loader path → Step 4</td></tr>
+  <tr><td><code>UnsatisfiedLinkError: tf_capi_jni</code></td><td>bridge not built/copied → Steps 3–4</td></tr>
+  <tr><td>gcc: <code>tensorflow/c/c_api.h: No such file</code></td><td>wrong TFHOME argument → must contain <code>include/</code> and <code>lib/</code></td></tr>
+  <tr><td>JVM crash <code>EXCEPTION_ACCESS_VIOLATION</code></td><td>version mismatch between downloaded TF and the JNI bridge — rebuild Step 3 against the same dist</td></tr>
+</table>
+
+</body>
+</html>

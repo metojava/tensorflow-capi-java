@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TensorFlow C API from Java &mdash; build &amp; run guide</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; max-width: 880px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #222; }
+  h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.25; }
+  h1 { border-bottom: 3px solid #f2a33c; padding-bottom: .3rem; }
+  h2 { border-bottom: 1px solid #ddd; padding-bottom: .2rem; margin-top: 2.2rem; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: .9rem 1.1rem; border-radius: 6px; overflow-x: auto; font-size: .88rem; }
+  code { font-family: Consolas, 'Cascadia Mono', monospace; }
+  p code, li code, td code { background: #f0f0f0; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
+  pre code { background: none; padding: 0; }
+  .note { background: #fff8e6; border-left: 4px solid #f2a33c; padding: .6rem 1rem; margin: 1rem 0; }
+  .warn { background: #fdecec; border-left: 4px solid #d9534f; padding: .6rem 1rem; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid #ccc; padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: #f5f5f5; font-family: 'Segoe UI', Arial, sans-serif; }
+  footer { margin-top: 3rem; font-size: .85rem; color: #777; border-top: 1px solid #ddd; padding-top: .8rem; }
+</style>
+</head>
+<body>
+
+<h1>TensorFlow C API from Java &mdash; build &amp; run guide</h1>
+
+<p>This Maven project wraps the <strong>TensorFlow C API</strong> in a small Java library via
+<strong>JNI</strong>, and ships a demo application that classifies Fashion-MNIST images with a
+model trained in Python/Keras. Everything native is compiled with <strong>gcc</strong>
+(MSYS2/UCRT64); no official TensorFlow Java binding is used.</p>
+
+<h2>Architecture</h2>
+
+<pre><code>FashionMnistDemo.java          your application
+        │  calls
+TfModel.java / TensorFlow.java  thin Java wrapper (native methods)
+        │  JNI
+tf_capi_jni.c                   C bridge, compiled by gcc into tf_capi_jni.dll
+        │  links against
+tensorflow.dll                  official TensorFlow C library (2.18.x)</code></pre>
+
+<p>The bridge loads a Keras-exported <strong>SavedModel</strong> (produced by
+<code>..\classification.py</code>), feeds float tensors in, and copies probability tensors back
+to Java as <code>float[]</code>.</p>
+
+<h2>Prerequisites</h2>
+<table>
+  <tr><th>Component</th><th>Details</th></tr>
+  <tr>
+    <td>JDK 17+</td>
+    <td><code>JAVA_HOME</code> must be set (needed both by Maven and by gcc for <code>jni.h</code>).</td>
+  </tr>
+  <tr>
+    <td>Maven 3.9+</td>
+    <td><code>mvn -version</code> must work.</td>
+  </tr>
+  <tr>
+    <td>MSYS2 with UCRT64 gcc</td>
+    <td><code>C:\msys64</code>; install with
+        <code>C:\msys64\usr\bin\pacman.exe -S mingw-w64-ucrt-x86_64-gcc</code></td>
+  </tr>
+  <tr>
+    <td>TensorFlow C library</td>
+    <td><code>C:\Users\dell\Desktop\libtensorflow-cpu-windows-x86_64</code>
+        (<code>include\</code> + <code>lib\tensorflow.dll</code>)</td>
+  </tr>
+  <tr>
+    <td>Trained SavedModel</td>
+    <td><code>..\classification\fashion_model</code> &mdash; create by running
+        <code>python ..\..\classification.py</code> once (trains ~1&ndash;2 min and exports).</td>
+  </tr>
+  <tr>
+    <td>Fashion-MNIST test set</td>
+    <td><code>..\data\fashion\t10k-*.gz</code> (gzip IDX format)</td>
+  </tr>
+</table>
+
+<div class="note">
+All machine-specific paths live in two places only: the
+<code>&lt;tf.capi.home&gt;</code> and <code>&lt;msys2.bash&gt;</code> properties at the top of
+<code>pom.xml</code>, and the default path inside
+<code>src/main/java/com/example/tfcapi/TensorFlow.java</code> (overridable via the
+<code>TF_CAPI_DLL</code> environment variable).
+</div>
+
+<h2>Step 1 &mdash; Build the native JNI DLL</h2>
+
+<p>All gcc logic lives in one shell script,
+<code>src/main/native/build-native.sh</code>. It:</p>
+<ol>
+  <li>locates itself (<code>dirname $0</code>) so it works from any working directory;</li>
+  <li>converts <code>JAVA_HOME</code> to a POSIX path with <code>cygpath</code>;</li>
+  <li>compiles <code>tf_capi_jni.c</code> with
+      <code>-D_JNI_IMPLEMENTATION_</code> (makes MinGW export the JNI functions);</li>
+  <li>links directly against <code>tensorflow.dll</code> (GNU ld generates import stubs itself,
+      so the MSVC-format <code>tensorflow.lib</code> is not needed);</li>
+  <li>writes <code>target\native\tf_capi_jni.dll</code> using an <strong>absolute</strong> path
+      and verifies the file exists afterwards.</li>
+</ol>
+
+<p>Run it standalone:</p>
+<pre><code>build.cmd</code></pre>
+
+<p>or let Maven do it automatically &mdash; the pom's <code>maven-antrun-plugin</code> invokes the
+same script during the <code>generate-resources</code> phase of every build.</p>
+
+<div class="warn">
+<strong>Why a script file?</strong> Injecting the gcc command line directly into pom.xml breaks
+reliably: when a JVM spawns <code>bash.exe</code>, the MSYS2 runtime rewrites arguments that look
+like paths &mdash; quoted strings get their quotes stripped and backslashes are eaten. Passing the
+script <em>filename</em> plus simple space-free arguments survives that boundary untouched.
+</div>
+
+<h2>Step 2 &mdash; Build the Java side</h2>
+
+<pre><code>mvn clean package</code></pre>
+
+<p>This runs the native step above, compiles the three Java classes, and produces
+<code>target/tensorflow-capi-java-1.0.0.jar</code>.</p>
+
+<h2>Step 3 &mdash; Run the demo application</h2>
+
+<pre><code>mvn compile exec:java</code></pre>
+
+<p>No PATH fiddling needed: <code>TensorFlow.load()</code> pre-loads
+<code>tensorflow.dll</code> by absolute path before loading the JNI DLL, so Windows resolves the
+dependency from the already-loaded module.</p>
+
+<p>Optional arguments (defaults shown):</p>
+<pre><code>mvn compile exec:java ^
+  -Dexec.args="../classification/fashion_model ../data/fashion/t10k-images-idx3-ubyte.gz ../data/fashion/t10k-labels-idx1-ubyte.gz 10000"</code></pre>
+
+<h2>Expected output</h2>
+
+<pre><code>TensorFlow C API version: 2.18.1
+Loaded 10000 test images (using 10000)
+
+==========================Scores========================================
+ Loss (sparse categorical cross-entropy): 0.3431
+ Accuracy:        0.8762
+ Precision:       0.8801
+ Recall:          0.8762
+ F1 score:        0.8775
+========================================================================
+
+Confusion matrix (rows = true label, columns = predicted):
+             0     1     2     3     4     5     6     7     8     9
+  0        790     1    24    20     4     1   154     0     6     0
+  ...
+
+Per-class metrics:
+  class         precision    recall        f1  support
+  T-shirt/top      0.8700    0.7900    0.8281     1000
+  ...</code></pre>
+
+<p>The numbers match the pure-C program (<code>..\classification\classify.exe</code>) and
+Keras' own <code>model.evaluate</code> exactly &mdash; a good cross-check of all three stacks.</p>
+
+<h2>Using the wrapper in your own code</h2>
+
+<pre><code>import com.example.tfcapi.TensorFlow;
+import com.example.tfcapi.TfModel;
+
+public class MyApp {
+    public static void main(String[] args) {
+        System.out.println(TensorFlow.version());      // loads natives on first use
+
+        try (TfModel model = new TfModel("fashion_model")) {
+            float[] pixels = /* 28*28 floats normalized to [0,1] */;
+            float[] probs = model.run(pixels, new long[]{1, 28, 28});
+            long[] shape = model.outputShape();         // e.g. [1, 10]
+
+            int best = 0;
+            for (int i = 1; i &lt; shape[1]; i++)
+                if (probs[i] &gt; probs[best]) best = i;
+            System.out.println("Predicted class " + best);
+        }
+    }
+}</code></pre>
+
+<ul>
+  <li><code>run()</code> takes one batch per call; <code>inShape</code> product must equal
+      <code>input.length</code>.</li>
+  <li>Returns the flattened output tensor; its dimensions are available via
+      <code>outputShape()</code>.</li>
+  <li><code>TfModel</code> is <code>AutoCloseable</code>; closing releases the native session.
+      Instances are synchronized and must not be shared across threads while running.</li>
+</ul>
+
+<h2>Troubleshooting</h2>
+<table>
+  <tr><th>Symptom</th><th>Cause and fix</th></tr>
+  <tr>
+    <td><code>UnsatisfiedLinkError: no tf_capi_jni in java.library.path</code></td>
+    <td>The JNI DLL was not built or is not at <code>target\native\tf_capi_jni.dll</code>.
+        Run <code>build.cmd</code> or <code>mvn package</code>.</td>
+  </tr>
+  <tr>
+    <td><code>UnsatisfiedLinkError</code> naming a method like
+        <code>TensorFlow.version()</code></td>
+    <td>Natives never loaded. Call <code>TensorFlow.load()</code> first (the wrapper methods do
+        this automatically).</td>
+  </tr>
+  <tr>
+    <td><code>Can't find dependent libraries</code> when loading tf_capi_jni.dll</td>
+    <td><code>tensorflow.dll</code> was not pre-loaded and is not on PATH. Set
+        <code>TF_CAPI_DLL</code> to its full path, or add its folder to PATH.</td>
+  </tr>
+  <tr>
+    <td>DLL disappears right after building / exe works then stops</td>
+    <td>Antivirus real-time protection quarantined the unsigned DLL. Add the project folder to
+        the Defender exclusions.</td>
+  </tr>
+  <tr>
+    <td><code>cc1.exe: fatal error: tf_capi_jni.c: No such file or directory</code></td>
+    <td>The script was moved or invoked from another location without its self-locating
+        <code>cd "$(dirname "$0")"</code> logic.</td>
+  </tr>
+  <tr>
+    <td>NATIVE_BUILD_OK but DLL is somewhere unexpected</td>
+    <td>Relative output paths (<code>../../x</code>) resolve differently depending on who spawned
+        bash. The script derives everything from its own location &mdash; keep it that way.</td>
+  </tr>
+  <tr>
+    <td><code>JAVA_HOME is not set</code></td>
+    <td>Set it to the JDK root (gcc needs <code>%JAVA_HOME%\include\jni.h</code>).</td>
+  </tr>
+  <tr>
+    <td>gcc exits silently with code&nbsp;1 when run straight from PowerShell/cmd</td>
+    <td>Known environment quirk: gcc's internal cc1.exe child fails to start outside an MSYS2
+        shell. Always go through <code>build-native.sh</code>/<code>build.cmd</code> or the MSYS2
+        UCRT64 shell.</td>
+  </tr>
+  <tr>
+    <td><code>Error loading model ... Export directory does not contain a SavedModel</code></td>
+    <td>Run <code>python ..\..\classification.py</code> first, and pass the correct model dir as
+        the first demo argument.</td>
+  </tr>
+</table>
+
+<h2>Project files</h2>
+<pre><code>tensorflow-capi-java\
+  pom.xml                              Maven build; antrun calls build-native.sh
+  build.cmd                            manual native build entry point
+  src\main\java\com\example\tfcapi\
+    TensorFlow.java                    native loader + version()
+    TfModel.java                       SavedModel wrapper (run / outputShape / close)
+    SimpleNeuralNet.java               from-scratch MLP: create, trainBatch, predict
+    IdxDataset.java                    gzip IDX reader (MNIST-style files)
+    Metrics.java                       DL4J-style scores + confusion matrix report
+    demo\FashionMnistDemo.java         SavedModel evaluation demo
+  src\main\native\
+    tf_capi_jni.c                      JNI bridge + graph-building MLP trainer
+    build-native.sh                    gcc build script (single source of truth)
+  target\native\tf_capi_jni.dll        produced artifact (after build)</code></pre>
+
+<h2>Training a model from scratch in Java</h2>
+
+<p>Besides running exported SavedModels, the wrapper can <em>build and train</em> a small
+neural network natively &mdash; no Python anywhere:</p>
+
+<pre><code>try (SimpleNeuralNet net = new SimpleNeuralNet(784, 128, 10, 0.15f)) {
+    for (int epoch = 0; epoch &lt; 8; epoch++) {
+        for (each batch) {
+            float loss = net.trainBatch(batchX, batchY);   // one SGD step
+        }
+    }
+    float[] probs = net.predict(testBatch);                // rows of 10 probabilities
+}</code></pre>
+
+<p>Internally the C bridge constructs the graph
+(<code>Relu(x&middot;W1+b1) &rarr; logits &rarr; LogSoftmax CE</code>), differentiates it with
+<code>TF_AddGradients</code>, and applies SGD updates on native parameter tensors.
+A consumer project that trains Fashion-MNIST this way lives in
+<code>C:\Users\dell\Desktop\fashion-mnist-java</code>, which uses this wrapper as a plain
+Maven dependency (<code>com.example:tensorflow-capi-java:1.1.0</code>; run with
+<code>mvn compile exec:java</code>). It reaches ~86% test accuracy in ~10&nbsp;s on CPU.</p>
+
+<div class="note">
+Note: the cross-entropy is composed from primitives (<code>LogSoftmax</code>,
+<code>Mul</code>, <code>Sum</code>, <code>Neg</code>, <code>Mean</code>) because
+<code>SparseSoftmaxCrossEntropyWithLogits</code> has no gradient registered in the C++
+gradient registry that <code>TF_AddGradients</code> relies on &mdash; its gradient exists only
+in Python.
+</div>
+
+<footer>
+Tested with: TensorFlow C library 2.18.1 (CPU, windows-x86_64), JDK 17 (Oracle),
+Maven 3.9.9, MSYS2 gcc 16.1.0 (ucrt64), Windows 11 x86_64.
+</footer>
+
+</body>
+</html>
