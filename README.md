@@ -17,6 +17,9 @@ com.example.tfcapi
 
 ## Using it in your project
 
+first read how_to_run_manually.txt
+build locally and after can use:
+
 Install into your local Maven repository (`mvn install`), then:
 
 ```xml
