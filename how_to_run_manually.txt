@@ -1,0 +1,26 @@
+download and extract on desktop:
+https://storage.googleapis.com/tensorflow/versions/2.17.0/libtensorflow-cpu-windows-x86_64.zip
+
+in project folder run :
+mvn clean install "-Dtf.capi.home=C:\Users\dell\Desktop\libtensorflow-cpu-windows-x86_64"
+
+add to system path:
+C:\Users\dell\Desktop\libtensorflow-cpu-windows-x86_64\lib
+
+this way tensorflow.dll will be available for any project on your computer and no need to copy in project folder
+
+
+download:
+https://github.com/zalandoresearch/fashion-mnist/archive/refs/heads/master.zip
+
+get data folder from downloaded zip file and put on desktop 
+
+
+after you do everything above you can go to:
+
+C:\Users\dell\Desktop\tfcapi-docs\projects\fashion-mnist-cnn
+
+and run:
+
+mvn clean install exec:java
+
