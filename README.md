@@ -1,9 +1,22 @@
 # tensorflow-capi-java
 
 A **self-contained Java machine-learning library** built directly on the
-TensorFlow C API through a hand-written JNI bridge. No official TensorFlow
+[TensorFlow C API](https://github.com/tensorflow/tensorflow/tree/master) through a hand-written JNI bridge. No official TensorFlow
 Java dependency, no Python, no Keras &mdash; one JAR carries everything,
 including the 909 MB native TensorFlow runtime.
+
+personal reason : after I knew that :
+tensorflow and pytorch are not python but C++ apis I understood 
+that writing wrapper by using AI is possible .
+
+this is showcase project and author is not taking any responsibilities :
+in case if someone wants to use it in production ... 
+just provide licenses and back links in case someone wants to communicate .. 
+no restrictions . use at your own risk 
+this and other ML or DL  projects under my account
+
+
+TensorFlow is licensed under the [Apache License 2.0](https://github.com/tensorflow/tensorflow/blob/master/LICENSE).
 
 ```
 com.example.tfcapi
@@ -136,3 +149,9 @@ mvn compile exec:java      # runs the SavedModel demo (needs ../classification/f
 A complete consumer example lives in `..\fashion-mnist-java`: it trains a
 Fashion-MNIST classifier from scratch (~86% test accuracy) and shows
 predictions in a Swing/JFreeChart viewer.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+Third-party licenses: [NOTICE](NOTICE) | [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES)

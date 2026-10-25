@@ -1,0 +1,65 @@
+Third-Party Licenses
+====================
+
+This project bundles or depends on the following third-party components:
+
+1. TensorFlow C API (libtensorflow) v2.17.0
+   ------------------------------------------
+   License: Apache License 2.0
+   Source: https://github.com/tensorflow/tensorflow
+   Copyright: The TensorFlow Authors
+   
+   Full license text: See LICENSE file (Apache 2.0)
+
+2. JFreeChart v1.5.6
+   ------------------
+   License: GNU Lesser General Public License (LGPL) 2.1
+   Source: https://www.jfree.org/jfreechart/
+   Copyright: (C) 2000-2023, by Object Refinery Limited and Contributors
+   
+   Full license text:
+   https://www.gnu.org/licenses/lgpl-2.1.html
+
+3. JCommon v1.0.24
+   ----------------
+   License: GNU Lesser General Public License (LGPL) 2.1
+   Source: https://www.jfree.org/jcommon/
+   Copyright: (C) 2001-2023, by Object Refinery Limited and Contributors
+   
+   Full license text:
+   https://www.gnu.org/licenses/lgpl-2.1.html
+
+----------------------------------------
+
+Apache License 2.0 Summary
+--------------------------
+The Apache License 2.0 is a permissive free software license that allows:
+- Commercial use
+- Modification
+- Distribution
+- Patent grant
+- Private use
+
+Requirements:
+- Include license and copyright notice
+- State changes made to files
+- Include NOTICE file if present
+
+LGPL 2.1 Summary
+----------------
+The GNU Lesser General Public License 2.1 allows:
+- Linking with proprietary applications
+- Modification of the library itself (must be shared under LGPL)
+- Distribution of combined works
+
+Requirements:
+- Provide access to LGPL library source code
+- Allow user to relink with modified LGPL library
+- Include license and copyright notices
+- Provide LGPL license text
+
+----------------------------------------
+
+For the complete license texts, please refer to:
+- Apache 2.0: https://www.apache.org/licenses/LICENSE-2.0
+- LGPL 2.1: https://www.gnu.org/licenses/lgpl-2.1.html
